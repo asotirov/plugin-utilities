@@ -1,6 +1,6 @@
 {
   "name": "plugin-utilities",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "main": "utilities.js",
   "dependencies": {
     "lodash": "^4.13.1",

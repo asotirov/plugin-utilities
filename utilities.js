@@ -5,8 +5,8 @@ const Q = require('q');
 const request = require('request-promise');
 const crypto = require('crypto');
 
-module.exports = ({cache,options}, {utilities}) => {
-    utilities = {};
+module.exports = ['utilities', ({cache,options}) => {
+    const utilities = {};
     utilities.dateRegex = /^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1]) (2[0-3]|[01][0-9]):[0-5][0-9]$/;
     utilities.fullDateRegex = /^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])T(2[0-3]|[01][0-9]):[0-5][0-9](:[0-9]{2}\.[0-9]{3}Z)?$/;
 
@@ -37,53 +37,53 @@ module.exports = ({cache,options}, {utilities}) => {
         let version = 1.31;//cache version
         cache.wrap(`utc:${moment(date).toJSON()}:${query}:${version}`,
             (cc) => {
-            request.get({
-            url: `https://maps.googleapis.com/maps/api/place/textsearch/json`,
-            qs: {
-                key: options.googleApisPlaceKey,
-                query: query
-            },
-            json: true
-        }).then((result) => {
-            const location = _.get(result, 'results[0].geometry.location');
-        if (location) {
-            if (date) {
-                return request.get({
-                    url: `http://api.geonames.org/timezoneJSON`,
+                request.get({
+                    url: `https://maps.googleapis.com/maps/api/place/textsearch/json`,
                     qs: {
-                        username: options.geoNamesUsername,
-                        lat: location.lat,
-                        lng: location.lng
+                        key: options.googleApisPlaceKey,
+                        query: query
                     },
                     json: true
-                })
-                    .then(({timezoneId}) => {
-                    let utc = utilities.convertToUtcDate(date, timezoneId);
-                return {
-                    utc: utc,
-                    timezone: timezoneId,
-                    timezoneOffset: utilities.getTimezoneOffset(date, timezoneId),
-                    local: utilities.convertUtcToLocal(utc, timezoneId),
-                    lat: location.lat,
-                    lng: location.lng
-                };
+                }).then((result) => {
+                    const location = _.get(result, 'results[0].geometry.location');
+                    if (location) {
+                        if (date) {
+                            return request.get({
+                                url: `http://api.geonames.org/timezoneJSON`,
+                                qs: {
+                                    username: options.geoNamesUsername,
+                                    lat: location.lat,
+                                    lng: location.lng
+                                },
+                                json: true
+                            })
+                                .then(({timezoneId}) => {
+                                    let utc = utilities.convertToUtcDate(date, timezoneId);
+                                    return {
+                                        utc: utc,
+                                        timezone: timezoneId,
+                                        timezoneOffset: utilities.getTimezoneOffset(date, timezoneId),
+                                        local: utilities.convertUtcToLocal(utc, timezoneId),
+                                        lat: location.lat,
+                                        lng: location.lng
+                                    };
+                                });
+                        } else {
+                            return location;
+                        }
+                    } else {
+                        const defer = Q.defer();
+                        defer.reject(new Error(result.status));
+                        return defer.promise;
+                    }
+                }).then((result) => cc(null, result)).catch(cc);
+            }, (err, result) => {
+                if (err) {
+                    defer.reject(err);
+                } else {
+                    defer.resolve(result);
+                }
             });
-            } else {
-                return location;
-            }
-        } else {
-            const defer = Q.defer();
-            defer.reject(new Error(result.status));
-            return defer.promise;
-        }
-    }).then((result) => cc(null, result)).catch(cc);
-    }, (err, result) => {
-            if (err) {
-                defer.reject(err);
-            } else {
-                defer.resolve(result);
-            }
-        });
 
         return defer.promise;
     };
@@ -254,4 +254,8 @@ module.exports = ({cache,options}, {utilities}) => {
     utilities.randomString = function (length) {
         return crypto.randomBytes(length).toString('hex');
     };
-};
+
+    return {
+        utilities
+    }
+}];
