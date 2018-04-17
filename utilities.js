@@ -4,11 +4,20 @@ const moment = require('moment-timezone');
 const Q = require('q');
 const request = require('request-promise');
 const crypto = require('crypto');
+const util = require('util');
 
-module.exports = ['utilities', ({cache,options}) => {
+module.exports = ['utilities', ({cache, options}) => {
     const utilities = {};
     utilities.dateRegex = /^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1]) (2[0-3]|[01][0-9]):[0-5][0-9]$/;
     utilities.fullDateRegex = /^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])T(2[0-3]|[01][0-9]):[0-5][0-9](:[0-9]{2}\.[0-9]{3}Z)?$/;
+
+    utilities.promisifyAll = function (protoOrObject) {
+        for (const prop of Object.getOwnPropertyNames(protoOrObject)) {
+            if (prop === 'constructor') continue; // .prototype.constructor
+            const old = protoOrObject[prop];
+            protoOrObject[`${prop}Async`] = util.promisify(old); // should probably be defineProperty
+        }
+    };
 
     utilities.reviveDates = function (key, value) {
         const regexIso8601 = /^(\d{4}|\+\d{6})(?:-(\d{2})(?:-(\d{2})(?:T(\d{2}):(\d{2}):(\d{2})\.(\d{1,})(Z|([\-+])(\d{2}):(\d{2}))?)?)?)?$/;
@@ -49,14 +58,14 @@ module.exports = ['utilities', ({cache,options}) => {
                     if (location) {
                         if (date) {
                             return request.get({
-                                url: `http://api.geonames.org/timezoneJSON`,
-                                qs: {
-                                    username: options.geoNamesUsername,
-                                    lat: location.lat,
-                                    lng: location.lng
-                                },
-                                json: true
-                            })
+                                    url: `http://api.geonames.org/timezoneJSON`,
+                                    qs: {
+                                        username: options.geoNamesUsername,
+                                        lat: location.lat,
+                                        lng: location.lng
+                                    },
+                                    json: true
+                                })
                                 .then(({timezoneId}) => {
                                     let utc = utilities.convertToUtcDate(date, timezoneId);
                                     return {
