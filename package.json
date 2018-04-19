@@ -1,12 +1,13 @@
 {
   "name": "plugin-utilities",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "main": "utilities.js",
   "dependencies": {
     "lodash": "^4.13.1",
     "moment": "^2.13.0",
     "moment-timezone": "^0.5.11",
     "q": "*",
+    "request": "^2.85.0",
     "request-promise": "^4.0.2"
   },
   "plugin": true

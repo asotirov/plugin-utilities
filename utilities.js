@@ -12,11 +12,9 @@ module.exports = ['utilities', ({cache, options}) => {
     utilities.fullDateRegex = /^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])T(2[0-3]|[01][0-9]):[0-5][0-9](:[0-9]{2}\.[0-9]{3}Z)?$/;
 
     utilities.promisifyAll = function (protoOrObject) {
-        for (const prop of Object.getOwnPropertyNames(protoOrObject)) {
-            if (prop === 'constructor') continue; // .prototype.constructor
-            const old = protoOrObject[prop];
-            protoOrObject[`${prop}Async`] = util.promisify(old); // should probably be defineProperty
-        }
+        Object.keys(protoOrObject).forEach(method => {
+            protoOrObject[method] = util.promisify(protoOrObject[method])
+        })
     };
 
     utilities.reviveDates = function (key, value) {
