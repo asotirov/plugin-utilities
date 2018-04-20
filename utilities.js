@@ -13,7 +13,7 @@ module.exports = ['utilities', ({cache, options}) => {
 
     utilities.promisifyAll = function (protoOrObject) {
         Object.keys(protoOrObject).forEach(method => {
-            protoOrObject[method] = util.promisify(protoOrObject[method])
+            protoOrObject[method+'Async'] = util.promisify(protoOrObject[method])
         })
     };
 
