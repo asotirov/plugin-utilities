@@ -13,7 +13,7 @@ module.exports = ['utilities', ({cache, options}) => {
 
     utilities.promisifyAll = function (protoOrObject) {
         Object.keys(protoOrObject).forEach(method => {
-            protoOrObject[method+'Async'] = util.promisify(protoOrObject[method])
+            protoOrObject[method + 'Async'] = util.promisify(protoOrObject[method])
         })
     };
 
@@ -131,6 +131,8 @@ module.exports = ['utilities', ({cache, options}) => {
             return error;
         }
     };
+
+
     /**
      * Transforms the object. Transformations are described by the properties object.
      * 'propName': include that property,
@@ -140,10 +142,12 @@ module.exports = ['utilities', ({cache, options}) => {
      * @param object
      * @param [path] apply the transformation only to this property. { 'pickAs': 'pickFrom.path' }
      * @param properties {String|Object}
+     * @param req
      * @returns {{}}
      */
-    utilities.transformThatObject = function (object, path, properties) {
+    utilities.transformThatObject = function (object, path, properties, req) {
         if (arguments.length === 2) {
+            req = properties;
             properties = path;
             path = null;
         }
@@ -154,14 +158,14 @@ module.exports = ['utilities', ({cache, options}) => {
                 pathAs = k;
                 pathFrom = path[k];
             }
-            finalResult = _.extend({}, object);
+            finalResult = _.clone(object);
             object = _.get(object, pathFrom);
         }
         let transformedObject;
         if (_.isArray(object)) {
-            transformedObject = _.map(object, _.partial(utilities._transformSingleObject, _, properties));
+            transformedObject = _.map(object, _.partial(utilities._transformSingleObject, _, properties, req));
         } else {
-            transformedObject = utilities._transformSingleObject(object, properties);
+            transformedObject = utilities._transformSingleObject(object, properties, req);
         }
 
         if (path) {
@@ -173,19 +177,27 @@ module.exports = ['utilities', ({cache, options}) => {
         return finalResult;
     };
 
-    utilities._transformSingleObject = function (object, properties) {
+    utilities._transformSingleObject = function (object, properties, req) {
         const transformedObject = {};
         let toDelete = [];
+        if (!object && object !== '') {
+            return object;
+        }
+        object._req = req;
         _.each(properties, function (value) {
+
             let objectValue, objectKey;
             switch (typeof value) {
                 case 'string':
+                    if (value === '_req') {
+                        break;
+                    }
                     objectValue = object[value];
                     objectKey = value;
                     break;
                 case 'object':
-                    for (var key in value) { //get the first key in the object value of the transformation definition
-                        break;
+                    for (var key in value) { // jshint ignore:line
+                        break;//get the first key in the object value of the transformation definition
                     }
                     objectKey = key;
                     let p = value[key];
@@ -194,10 +206,13 @@ module.exports = ['utilities', ({cache, options}) => {
                     } else {
                         switch (typeof p) {
                             case 'string':
+                                if (p === '_req') {
+                                    break;
+                                }
                                 objectValue = _.get(object, p);
                                 break;
                             case 'function':
-                                objectValue = p.call(null, object);
+                                objectValue = p.call(object, object, req);
                                 break;
                             default:
                                 throw new Error('invalid transformation for :' + key);
