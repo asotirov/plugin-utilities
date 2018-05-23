@@ -17,6 +17,23 @@ module.exports = ['utilities', ({cache, options}) => {
         })
     };
 
+    utilities.promiseTimeout = function(ms, promise){
+
+        // Create a promise that rejects in <ms> milliseconds
+        let timeout = new Promise((resolve, reject) => {
+            let id = setTimeout(() => {
+                clearTimeout(id);
+                reject(new Error('Timed out in '+ ms + 'ms.'));
+            }, ms)
+        });
+
+        // Returns a race between our timeout and the passed in promise
+        return Promise.race([
+            promise,
+            timeout
+        ])
+    }
+
     utilities.reviveDates = function (key, value) {
         const regexIso8601 = /^(\d{4}|\+\d{6})(?:-(\d{2})(?:-(\d{2})(?:T(\d{2}):(\d{2}):(\d{2})\.(\d{1,})(Z|([\-+])(\d{2}):(\d{2}))?)?)?)?$/;
         let match;
