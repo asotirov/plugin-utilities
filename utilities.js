@@ -17,13 +17,13 @@ module.exports = ['utilities', ({cache, options}) => {
         })
     };
 
-    utilities.promiseTimeout = function(ms, promise){
+    utilities.promiseTimeout = function (ms, promise) {
 
         // Create a promise that rejects in <ms> milliseconds
         let timeout = new Promise((resolve, reject) => {
             let id = setTimeout(() => {
                 clearTimeout(id);
-                reject(new Error('Timed out in '+ ms + 'ms.'));
+                reject(new Error('Timed out in ' + ms + 'ms.'));
             }, ms)
         });
 
@@ -80,7 +80,7 @@ module.exports = ['utilities', ({cache, options}) => {
                     }
                 }).then((result) => cc(null, result)).catch(cc);
             }, (err, result) => {
-                if (err) {
+                if (err && err !== 'ZERO_RESULTS' && err !== 'INVALID_REQUEST') {//cache zero results
                     defer.reject(err);
                 } else {
                     defer.resolve(result);
@@ -89,43 +89,46 @@ module.exports = ['utilities', ({cache, options}) => {
 
         return defer.promise.then(function (location) {
             const deferDate = Q.defer();
-
-            cache.wrap(`utc:[${location.lat},${location.lng}]:${date}:${version}`,
-                (cc) => {
-                    request.get({
-                            url: `http://api.geonames.org/timezoneJSON`,
-                            qs: {
-                                username: options.geoNamesUsername,
-                                lat: location.lat,
-                                lng: location.lng
-                            },
-                            json: true
-                        })
-                        .then(result => {
-                            if (!result.timezoneId) {
-                                throw new Error('No timezoneId in ' + JSON.stringify(result));
-                            }
-                            let timezoneId = result.timezoneId;
-                            let utc = utilities.convertToUtcDate(date, timezoneId);
-                            return {
-                                utc: utc,
-                                timezone: timezoneId,
-                                timezoneOffset: utilities.getTimezoneOffset(date, timezoneId),
-                                local: utilities.convertUtcToLocal(utc, timezoneId),
-                                lat: location.lat,
-                                lng: location.lng
-                            };
-                        })
-                        .then(result => cc(null, result))
-                        .catch(cc);
-                }, (err, result) => {
-                    if (err) {
-                        deferDate.reject(err);
-                    } else {
-                        deferDate.resolve(result);
-                    }
-                });
-
+            if (typeof(location) === 'string') {
+                //Indicates a HARD error.
+                deferDate.reject(location);
+            } else {
+                cache.wrap(`utc:[${location.lat},${location.lng}]:${date}:${version}`,
+                    (cc) => {
+                        request.get({
+                                url: `http://api.geonames.org/timezoneJSON`,
+                                qs: {
+                                    username: options.geoNamesUsername,
+                                    lat: location.lat,
+                                    lng: location.lng
+                                },
+                                json: true
+                            })
+                            .then(result => {
+                                if (!result.timezoneId) {
+                                    throw new Error('No timezoneId in ' + JSON.stringify(result));
+                                }
+                                let timezoneId = result.timezoneId;
+                                let utc = utilities.convertToUtcDate(date, timezoneId);
+                                return {
+                                    utc: utc,
+                                    timezone: timezoneId,
+                                    timezoneOffset: utilities.getTimezoneOffset(date, timezoneId),
+                                    local: utilities.convertUtcToLocal(utc, timezoneId),
+                                    lat: location.lat,
+                                    lng: location.lng
+                                };
+                            })
+                            .then(result => cc(null, result))
+                            .catch(cc);
+                    }, (err, result) => {
+                        if (err) {
+                            deferDate.reject(err);
+                        } else {
+                            deferDate.resolve(result);
+                        }
+                    });
+            }
             return deferDate.promise;
         });
     };
