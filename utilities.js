@@ -47,6 +47,7 @@ module.exports = ['utilities', ({cache, options}) => {
     };
 
 
+
     utilities.convertLocalToUtc = function (date, city, country) {
         let query;
         if (city && country) {
@@ -54,84 +55,98 @@ module.exports = ['utilities', ({cache, options}) => {
         } else {
             query = city;
         }
-        const defer = Q.defer();
         if (!_.isDate(date) && !(typeof date === 'string' && (date.match(utilities.dateRegex) || date.match(utilities.fullDateRegex)))) {
             throw new Error('Date should be in format YYYY-MM-DD HH:mm or YYYY-MM-DDTHH:mm:ss.sssZ');
         }
         date = moment.utc(date).toDate();
         let version = cacheVersion;//cache version
-        cache.wrap(`location:${query}:${version}`,
-            (cc) => {
-                request.get({
-                    url: `https://maps.googleapis.com/maps/api/place/textsearch/json`,
-                    qs: {
-                        key: options.googleApisPlaceKey,
-                        query: query
-                    },
-                    json: true
-                }).then((result) => {
-                    const location = _.get(result, 'results[0].geometry.location');
-                    if (location) {
-                        return location;
-                    } else {
-                        const defer = Q.defer();
-                        defer.reject(new Error(result.status));
-                        return defer.promise;
-                    }
-                }).then((result) => cc(null, result)).catch(cc);
-            }, (err, result) => {
-                if (err && err !== 'ZERO_RESULTS' && err !== 'INVALID_REQUEST') {//cache zero results
-                    defer.reject(err);
-                } else {
-                    defer.resolve(result);
-                }
-            });
+        return new Promise((resolve, reject) => {
+            cache.wrap(`localToUtc:${date}:${query}:${version}`, (ccMain) => {
+                const locationDefer = Q.defer();
 
-        return defer.promise.then(function (location) {
-            const deferDate = Q.defer();
-            if (typeof(location) === 'string') {
-                //Indicates a HARD error.
-                deferDate.reject(location);
-            } else {
-                cache.wrap(`utc:[${location.lat},${location.lng}]:${date}:${version}`,
+                cache.wrap(`location:${query}:${version}`,
                     (cc) => {
                         request.get({
-                                url: `http://api.geonames.org/timezoneJSON`,
-                                qs: {
-                                    username: options.geoNamesUsername,
-                                    lat: location.lat,
-                                    lng: location.lng
-                                },
-                                json: true
-                            })
-                            .then(result => {
-                                if (!result.timezoneId) {
-                                    throw new Error('No timezoneId in ' + JSON.stringify(result));
-                                }
-                                let timezoneId = result.timezoneId;
-                                let utc = utilities.convertToUtcDate(date, timezoneId);
-                                return {
-                                    utc: utc,
-                                    timezone: timezoneId,
-                                    timezoneOffset: utilities.getTimezoneOffset(date, timezoneId),
-                                    local: utilities.convertUtcToLocal(utc, timezoneId),
-                                    lat: location.lat,
-                                    lng: location.lng
-                                };
-                            })
-                            .then(result => cc(null, result))
-                            .catch(cc);
+                            url: `https://maps.googleapis.com/maps/api/place/textsearch/json`,
+                            qs: {
+                                key: options.googleApisPlaceKey,
+                                query: query
+                            },
+                            json: true
+                        }).then((result) => {
+                            const location = _.get(result, 'results[0].geometry.location');
+                            if (location) {
+                                return location;
+                            } else {
+                                const defer = Q.defer();
+                                defer.reject(new Error(result.status));
+                                return defer.promise;
+                            }
+                        }).then((result) => cc(null, result)).catch(cc);
                     }, (err, result) => {
-                        if (err) {
-                            deferDate.reject(err);
+                        if (err && err !== 'ZERO_RESULTS' && err !== 'INVALID_REQUEST') {//cache zero results
+                            locationDefer.reject(err);
                         } else {
-                            deferDate.resolve(result);
+                            locationDefer.resolve(result);
                         }
                     });
-            }
-            return deferDate.promise;
+
+                locationDefer.promise.then(function (location) {
+                    const deferDate = Q.defer();
+                    if (typeof(location) === 'string') {
+                        //Indicates a HARD error.
+                        deferDate.reject(location);
+                    } else {
+                        cache.wrap(`utc:[${location.lat},${location.lng}]:${version}`,
+                            (cc) => {
+                                request.get({
+                                        url: `http://api.geonames.org/timezoneJSON`,
+                                        qs: {
+                                            username: options.geoNamesUsername,
+                                            lat: location.lat,
+                                            lng: location.lng
+                                        },
+                                        json: true
+                                    })
+                                    .then(result => {
+                                        if (!result.timezoneId) {
+                                            throw new Error('No timezoneId in ' + JSON.stringify(result));
+                                        }
+                                        let timezoneId = result.timezoneId;
+                                        let utc = utilities.convertToUtcDate(date, timezoneId);
+                                        return {
+                                            utc: utc,
+                                            timezone: timezoneId,
+                                            timezoneOffset: utilities.getTimezoneOffset(date, timezoneId),
+                                            local: utilities.convertUtcToLocal(utc, timezoneId),
+                                            lat: location.lat,
+                                            lng: location.lng
+                                        };
+                                    })
+                                    .then(result => cc(null, result))
+                                    .catch(cc);
+                            }, (err, result) => {
+                                if (err) {
+                                    deferDate.reject(err);
+                                } else {
+                                    deferDate.resolve(result);
+                                }
+                            });
+                    }
+                    return deferDate.promise;
+                }).then(result => ccMain(null, result))
+                    .catch(ccMain);
+            }, (err, result) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(result);
+                }
+            });
         });
+
     };
+
 
     utilities.getTimezoneOffset = function (localDate, timezoneId) {
         const offset = moment.tz(localDate, timezoneId).format('Z');
