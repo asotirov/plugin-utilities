@@ -48,6 +48,7 @@ module.exports = ['utilities', ({cache, options}) => {
 
 
 
+
     utilities.convertLocalToUtc = function (date, city, country) {
         let query;
         if (city && country) {
@@ -58,10 +59,12 @@ module.exports = ['utilities', ({cache, options}) => {
         if (!_.isDate(date) && !(typeof date === 'string' && (date.match(utilities.dateRegex) || date.match(utilities.fullDateRegex)))) {
             throw new Error('Date should be in format YYYY-MM-DD HH:mm or YYYY-MM-DDTHH:mm:ss.sssZ');
         }
-        date = moment.utc(date).toDate();
+        let utc = moment.utc(date);
+        let format = utc.format('YYYY-MM-DD_HH-mm');
+        date = utc.toDate();
         let version = cacheVersion;//cache version
         return new Promise((resolve, reject) => {
-            cache.wrap(`localToUtc:${date}:${query}:${version}`, (ccMain) => {
+            cache.wrap(`localToUtc:${format}:${query}:${version}`, (ccMain) => {
                 const locationDefer = Q.defer();
 
                 cache.wrap(`location:${query}:${version}`,
@@ -97,7 +100,7 @@ module.exports = ['utilities', ({cache, options}) => {
                         //Indicates a HARD error.
                         deferDate.reject(location);
                     } else {
-                        cache.wrap(`utc:[${location.lat},${location.lng}]:${version}`,
+                        cache.wrap(`tz:[${location.lat},${location.lng}]:${version}`,
                             (cc) => {
                                 request.get({
                                         url: `http://api.geonames.org/timezoneJSON`,
@@ -113,12 +116,8 @@ module.exports = ['utilities', ({cache, options}) => {
                                             throw new Error('No timezoneId in ' + JSON.stringify(result));
                                         }
                                         let timezoneId = result.timezoneId;
-                                        let utc = utilities.convertToUtcDate(date, timezoneId);
                                         return {
-                                            utc: utc,
                                             timezone: timezoneId,
-                                            timezoneOffset: utilities.getTimezoneOffset(date, timezoneId),
-                                            local: utilities.convertUtcToLocal(utc, timezoneId),
                                             lat: location.lat,
                                             lng: location.lng
                                         };
@@ -134,7 +133,17 @@ module.exports = ['utilities', ({cache, options}) => {
                             });
                     }
                     return deferDate.promise;
-                }).then(result => ccMain(null, result))
+                }).then(({timezone, lat, lng}) => {
+                        let utc = utilities.convertToUtcDate(date, timezone);
+                        return ccMain(null, {
+                            utc,
+                            timezone,
+                            timezoneOffset: utilities.getTimezoneOffset(date, timezone),
+                            local: utilities.convertUtcToLocal(utc, timezone),
+                            lat,
+                            lng
+                        });
+                    })
                     .catch(ccMain);
             }, (err, result) => {
                 if (err) {
@@ -144,9 +153,7 @@ module.exports = ['utilities', ({cache, options}) => {
                 }
             });
         });
-
     };
-
 
     utilities.getTimezoneOffset = function (localDate, timezoneId) {
         const offset = moment.tz(localDate, timezoneId).format('Z');
