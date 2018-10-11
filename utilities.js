@@ -11,6 +11,7 @@ module.exports = ['utilities', ({cache, options}) => {
     utilities.dateRegex = /^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1]) (2[0-3]|[01][0-9]):[0-5][0-9]$/;
     utilities.fullDateRegex = /^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])T(2[0-3]|[01][0-9]):[0-5][0-9](:[0-9]{2}\.[0-9]{3}Z)?$/;
     const cacheVersion = options.cacheVersion || 1.32;
+    let cacheAsync = util.promisify(cache.wrap);
     utilities.promisifyAll = function (protoOrObject) {
         Object.keys(protoOrObject).forEach(method => {
             protoOrObject[method + 'Async'] = util.promisify(protoOrObject[method])
@@ -47,9 +48,7 @@ module.exports = ['utilities', ({cache, options}) => {
     };
 
 
-
-
-    utilities.convertLocalToUtc = function (date, city, country) {
+    utilities.convertLocalToUtc = async function (date, city, country) {
         let query;
         if (city && country) {
             query = `${city}, ${country}`;
@@ -63,95 +62,64 @@ module.exports = ['utilities', ({cache, options}) => {
         let format = utc.format('YYYY-MM-DD_HH-mm');
         date = utc.toDate();
         let version = cacheVersion;//cache version
-        return new Promise((resolve, reject) => {
-            cache.wrap(`localToUtc:${format}:${query}:${version}`, (ccMain) => {
-                const locationDefer = Q.defer();
-
-                cache.wrap(`location:${query}:${version}`,
-                    (cc) => {
-                        request.get({
-                            url: `https://maps.googleapis.com/maps/api/place/textsearch/json`,
-                            qs: {
-                                key: options.googleApisPlaceKey,
-                                query: query
-                            },
-                            json: true
-                        }).then((result) => {
-                            const location = _.get(result, 'results[0].geometry.location');
-                            if (location) {
-                                return location;
-                            } else {
-                                const defer = Q.defer();
-                                defer.reject(new Error(result.status));
-                                return defer.promise;
-                            }
-                        }).then((result) => cc(null, result)).catch(cc);
-                    }, (err, result) => {
-                        if (err && err !== 'ZERO_RESULTS' && err !== 'INVALID_REQUEST') {//cache zero results
-                            locationDefer.reject(err);
-                        } else {
-                            locationDefer.resolve(result);
-                        }
-                    });
-
-                locationDefer.promise.then(function (location) {
-                    const deferDate = Q.defer();
-                    if (typeof(location) === 'string') {
-                        //Indicates a HARD error.
-                        deferDate.reject(location);
-                    } else {
-                        cache.wrap(`tz:[${location.lat},${location.lng}]:${version}`,
-                            (cc) => {
-                                request.get({
-                                        url: `http://api.geonames.org/timezoneJSON`,
-                                        qs: {
-                                            username: options.geoNamesUsername,
-                                            lat: location.lat,
-                                            lng: location.lng
-                                        },
-                                        json: true
-                                    })
-                                    .then(result => {
-                                        if (!result.timezoneId) {
-                                            throw new Error('No timezoneId in ' + JSON.stringify(result));
-                                        }
-                                        let timezoneId = result.timezoneId;
-                                        return {
-                                            timezone: timezoneId,
-                                            lat: location.lat,
-                                            lng: location.lng
-                                        };
-                                    })
-                                    .then(result => cc(null, result))
-                                    .catch(cc);
-                            }, (err, result) => {
-                                if (err) {
-                                    deferDate.reject(err);
-                                } else {
-                                    deferDate.resolve(result);
-                                }
-                            });
-                    }
-                    return deferDate.promise;
-                }).then(({timezone, lat, lng}) => {
-                        let utc = utilities.convertToUtcDate(date, timezone);
-                        return ccMain(null, {
-                            utc,
-                            timezone,
-                            timezoneOffset: utilities.getTimezoneOffset(date, timezone),
-                            local: utilities.convertUtcToLocal(utc, timezone),
-                            lat,
-                            lng
-                        });
-                    })
-                    .catch(ccMain);
-            }, (err, result) => {
-                if (err) {
-                    reject(err);
+        return await cacheAsync(`localToUtc:${format}:${query}:${version}`, async () => {
+            let location = await cacheAsync(`location:${query}:${version}`, () => request.get({
+                url: `https://maps.googleapis.com/maps/api/place/textsearch/json`,
+                qs: {
+                    key: options.googleApisPlaceKey,
+                    query: query
+                },
+                json: true
+            }).then((result) => {
+                const location = _.get(result, 'results[0].geometry.location');
+                if (location) {
+                    return location;
                 } else {
-                    resolve(result);
+                    const defer = Q.defer();
+                    defer.reject(new Error(result.status));
+                    return defer.promise;
+                }
+            })).catch(err => {
+                if (err && err !== 'ZERO_RESULTS' && err !== 'INVALID_REQUEST') {//cache zero results
+                    throw err;
                 }
             });
+            if (typeof(location) === 'string') {
+                //Indicates a HARD error. so throw it
+                throw new Error(location);
+            }
+
+            let {timezone, lat, lng} = await cacheAsync(`tz:[${location.lat},${location.lng}]:${version}`,
+                () => request.get({
+                        url: `http://api.geonames.org/timezoneJSON`,
+                        qs: {
+                            username: options.geoNamesUsername,
+                            lat: location.lat,
+                            lng: location.lng
+                        },
+                        json: true
+                    })
+                    .then(result => {
+                        if (!result.timezoneId) {
+                            throw new Error('No timezoneId in ' + JSON.stringify(result));
+                        }
+                        let timezoneId = result.timezoneId;
+                        return {
+                            timezone: timezoneId,
+                            lat: location.lat,
+                            lng: location.lng
+                        };
+                    }));
+
+            let utc = utilities.convertToUtcDate(date, timezone);
+            return {
+                utc,
+                timezone,
+                timezoneOffset: utilities.getTimezoneOffset(date, timezone),
+                local: utilities.convertUtcToLocal(utc, timezone),
+                lat,
+                lng
+            };
         });
     };
 
