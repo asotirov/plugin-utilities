@@ -12,7 +12,7 @@ module.exports = ['utilities', ({cache, options}) => {
     const utilities = {};
     utilities.dateRegex = /^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1]) (2[0-3]|[01][0-9]):[0-5][0-9]$/;
     utilities.fullDateRegex = /^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])T(2[0-3]|[01][0-9]):[0-5][0-9](:[0-9]{2}\.[0-9]{3}Z)?$/;
-    if (options.cache !== undefined) {
+    if (options.cache) {
         let cache = cache;
         cacheVersion = options.cacheVersion || 1.32;
         cacheAsync = util.promisify(cache.wrap);
