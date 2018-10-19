@@ -7,11 +7,17 @@ const crypto = require('crypto');
 const util = require('util');
 
 module.exports = ['utilities', ({cache, options}) => {
+    let cacheVersion;
+    let cacheAsync;
     const utilities = {};
     utilities.dateRegex = /^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1]) (2[0-3]|[01][0-9]):[0-5][0-9]$/;
     utilities.fullDateRegex = /^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])T(2[0-3]|[01][0-9]):[0-5][0-9](:[0-9]{2}\.[0-9]{3}Z)?$/;
-    const cacheVersion = options.cacheVersion || 1.32;
-    let cacheAsync = util.promisify(cache.wrap);
+    if (options.cache !== undefined) {
+        let cache = cache;
+        cacheVersion = options.cacheVersion || 1.32;
+        cacheAsync = util.promisify(cache.wrap);
+    }
+
     utilities.promisifyAll = function (protoOrObject) {
         Object.keys(protoOrObject).forEach(method => {
             protoOrObject[method + 'Async'] = util.promisify(protoOrObject[method])
@@ -49,6 +55,9 @@ module.exports = ['utilities', ({cache, options}) => {
 
 
     utilities.convertLocalToUtc = async function (date, city, country) {
+        if (!cacheAsync) {
+            throw new Error('Cache is not initialized.');
+        }
         let query;
         if (city && country) {
             query = `${city}, ${country}`;

@@ -3,7 +3,7 @@
   "version": "0.1.8",
   "main": "utilities.js",
   "dependencies": {
-    "cache": "github:asotirov/plugin-cache#bb6317a",
+    "cache": "github:asotirov/plugin-cache#4c227de",
     "lodash": "^4.13.1",
     "moment": "^2.13.0",
     "moment-timezone": "^0.5.11",
