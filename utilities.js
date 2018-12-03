@@ -80,6 +80,7 @@ module.exports = ['utilities', ({cache, options}) => {
                 },
                 json: true
             }).then((result) => {
+                console.log('[utilities.googleApisKey', query);
                 const location = _.get(result, 'results[0].geometry.location');
                 if (location) {
                     return location;
@@ -89,6 +90,7 @@ module.exports = ['utilities', ({cache, options}) => {
                     return defer.promise;
                 }
             })).catch(err => {
+                console.log('[utilities.googleApisKey.err', err.message);
                 if (err && err !== 'ZERO_RESULTS' && err !== 'INVALID_REQUEST') {//cache zero results
                     throw err;
                 }
