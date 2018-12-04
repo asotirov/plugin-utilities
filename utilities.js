@@ -13,7 +13,6 @@ module.exports = ['utilities', ({cache, options}) => {
     utilities.dateRegex = /^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1]) (2[0-3]|[01][0-9]):[0-5][0-9]$/;
     utilities.fullDateRegex = /^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])T(2[0-3]|[01][0-9]):[0-5][0-9](:[0-9]{2}\.[0-9]{3}Z)?$/;
     if (options.cache) {
-        let cache = cache;
         cacheVersion = options.cacheVersion || 1.32;
         cacheAsync = util.promisify(cache.wrap);
     }
@@ -80,21 +79,22 @@ module.exports = ['utilities', ({cache, options}) => {
                 },
                 json: true
             }).then((result) => {
-                console.log('[utilities.googleApisKey', query);
                 const location = _.get(result, 'results[0].geometry.location');
                 if (location) {
+                    console.log('[utilities.googleApisKey]', query);
                     return location;
                 } else {
                     const defer = Q.defer();
                     defer.reject(new Error(result.status));
                     return defer.promise;
                 }
-            })).catch(err => {
-                console.log('[utilities.googleApisKey.err', err.message);
-                if (err && err !== 'ZERO_RESULTS' && err !== 'INVALID_REQUEST') {//cache zero results
+            }).catch(err => {
+                if (err && err.message !== 'ZERO_RESULTS' && err.message !== 'INVALID_REQUEST') {//cache zero results
+                    console.error('[utilities.googleApisKey.err]', query, err);
                     throw err;
                 }
-            });
+                return err.message;
+            }));
             if (typeof(location) === 'string') {
                 //Indicates a HARD error. so throw it
                 throw new Error(location);
