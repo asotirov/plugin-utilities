@@ -54,6 +54,9 @@ module.exports = ['utilities', ({cache, options}) => {
 
 
     utilities.convertLocalToUtc = async function (date, city, country) {
+        if (!city && !country) {
+            throw new Error('City and country are required');
+        }
         if (!cacheAsync) {
             throw new Error('Cache is not initialized.');
         }
