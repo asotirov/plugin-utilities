@@ -82,7 +82,9 @@ module.exports = ['utilities', ({cache, options}) => {
                     lng: data.geometry.location.lng
                 }
             })
-            .catch(err => throw err)
+            .catch(err => {
+                throw err
+            })
         );
     }
 
