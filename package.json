@@ -7,7 +7,6 @@
     "lodash": "^4.13.1",
     "moment": "^2.13.0",
     "moment-timezone": "^0.5.11",
-    "q": "*",
     "request": "^2.85.0",
     "request-promise": "^4.0.2"
   },

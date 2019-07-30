@@ -1,7 +1,6 @@
 'use strict';
 const _ = require('lodash');
 const moment = require('moment-timezone');
-const Q = require('q');
 const request = require('request-promise');
 const crypto = require('crypto');
 const util = require('util');
@@ -87,9 +86,7 @@ module.exports = ['utilities', ({cache, options}) => {
                     console.log('[utilities.googleApisKey]', query);
                     return location;
                 } else {
-                    const defer = Q.defer();
-                    defer.reject(new Error(result.status));
-                    return defer.promise;
+                    return Promise.reject(result.status);
                 }
             }).catch(err => {
                 if (err && err.message !== 'ZERO_RESULTS' && err.message !== 'INVALID_REQUEST') {//cache zero results
