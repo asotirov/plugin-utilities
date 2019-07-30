@@ -51,6 +51,42 @@ module.exports = ['utilities', ({cache, options}) => {
         return value;
     };
 
+    /**
+     * Get Google info for City, [Country]
+     *
+     * @param query (City, Country)
+     * @returns {Promise<*>}
+     */
+    utilities.googleCitySearch = async function (query) {
+        if (!cacheAsync) {
+            throw new Error('Cache is not initialized.');
+        }
+
+        const requestOptions = {
+            url: `https://maps.googleapis.com/maps/api/place/textsearch/json`,
+            qs: {query, key: options.googleApisPlaceKey},
+            json: true
+        };
+
+        const version = cacheVersion;
+        return await cacheAsync(`city:${query}:${version}`, () => request.get(requestOptions)
+            .then(result => {
+                if (result.status !== 'OK') {
+                    throw new Error(result.error_message);
+                }
+                const data = result.results[0];
+                return {
+                    placeId: data.place_id,
+                    lat: data.geometry.location.lat,
+                    lng: data.geometry.location.lng
+                }
+            })
+            .catch(err => {
+                throw err
+            })
+        );
+    }
+
 
     utilities.convertLocalToUtc = async function (date, city, country) {
         if (!city && !country) {
@@ -95,21 +131,21 @@ module.exports = ['utilities', ({cache, options}) => {
                 }
                 return err.message;
             }));
-            if (typeof(location) === 'string') {
+            if (typeof (location) === 'string') {
                 //Indicates a HARD error. so throw it
                 throw new Error(location);
             }
 
             let {timezone, lat, lng} = await cacheAsync(`tz:[${location.lat},${location.lng}]:${version}`,
                 () => request.get({
-                        url: `http://api.geonames.org/timezoneJSON`,
-                        qs: {
-                            username: options.geoNamesUsername,
-                            lat: location.lat,
-                            lng: location.lng
-                        },
-                        json: true
-                    })
+                    url: `http://api.geonames.org/timezoneJSON`,
+                    qs: {
+                        username: options.geoNamesUsername,
+                        lat: location.lat,
+                        lng: location.lng
+                    },
+                    json: true
+                })
                     .then(result => {
                         if (!result.timezoneId) {
                             throw new Error('No timezoneId in ' + JSON.stringify(result));
