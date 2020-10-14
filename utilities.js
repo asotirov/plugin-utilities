@@ -182,7 +182,7 @@ module.exports = ['utilities', ({cache, options}) => {
      * @param req
      * @returns {{}}
      */
-    utilities.transformThatObject = function (object, path, properties, req) {
+    utilities.transformThatObject =  async function (object, path, properties, req) {
         if (arguments.length === 2) {
             req = properties;
             properties = path;
@@ -200,9 +200,9 @@ module.exports = ['utilities', ({cache, options}) => {
         }
         let transformedObject;
         if (_.isArray(object)) {
-            transformedObject = _.map(object, _.partial(utilities._transformSingleObject, _, properties, req));
+            transformedObject = await Promise.all(_.map(object, _.partial(utilities._transformSingleObject, _, properties, req)));
         } else {
-            transformedObject = utilities._transformSingleObject(object, properties, req);
+            transformedObject = await utilities._transformSingleObject(object, properties, req);
         }
 
         if (path) {
@@ -214,14 +214,14 @@ module.exports = ['utilities', ({cache, options}) => {
         return finalResult;
     };
 
-    utilities._transformSingleObject = function (object, properties, req) {
+    utilities._transformSingleObject = async function (object, properties, req) {
         const transformedObject = {};
         let toDelete = [];
         if (!object && object !== '') {
             return object;
         }
         object._req = req;
-        _.each(properties, function (value) {
+        await Promise.all(_.map(properties, async function (value) {
 
             let objectValue, objectKey;
             switch (typeof value) {
@@ -249,7 +249,7 @@ module.exports = ['utilities', ({cache, options}) => {
                                 objectValue = _.get(object, p);
                                 break;
                             case 'function':
-                                objectValue = p.call(object, object, req);
+                                objectValue = await p.call(object, object, req);
                                 break;
                             default:
                                 throw new Error('invalid transformation for :' + key);
@@ -260,7 +260,7 @@ module.exports = ['utilities', ({cache, options}) => {
             if (objectValue !== undefined) {
                 transformedObject[objectKey] = objectValue;
             }
-        });
+        }));
 
         return _.omit(transformedObject, toDelete);
     };
