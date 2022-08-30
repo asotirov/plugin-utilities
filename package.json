@@ -6,7 +6,7 @@
     "cache": "github:asotirov/plugin-cache#eeaa566",
     "lodash": "^4.13.1",
     "moment": "^2.13.0",
-    "moment-timezone": "^0.5.11",
+    "moment-timezone": "^0.5.35",
     "request": "^2.85.0",
     "request-promise": "^4.0.2"
   },
